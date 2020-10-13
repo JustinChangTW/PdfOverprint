@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Overprint</title>
+</head>
+<style>
+    body {
+        background: #000;
+        text-align: center;
+    }
+</style>
+
+<body>
+    <div id="pdf-content">
+
+    </div>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.js'></script>
+    <script>
+        var showPdf = function(file) {
+
+            file = "PDF/formTest.pdf"
+            PDFJS.getDocument(file).then(function(pdf) {
+                for (var pageNum = 1; pageNum <= pdf.numPages; ++pageNum) {
+                    pdf.getPage(pageNum).then(function(page) {
+                        // you can now use *page* here
+
+                        var scale = 3;
+                        var viewport = page.getViewport(1.5); //倍數
+                        //viewport.width = window.innerWidth;
+                        var canvas = document.createElement('canvas');
+                        var context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        var renderContext = {
+                            canvasContext: context,
+                            viewport: viewport
+                        };
+                        page.render(renderContext);
+
+                        document.getElementById('pdf-content').appendChild(canvas);
+                    });
+                }
+            })
+        }
+    </script>
+</body>
+
+</html>
