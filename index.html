@@ -17,34 +17,66 @@
     <div id="pdf-content">
 
     </div>
+    <div id="viewerContainer" tabindex="0">
+        <div id="viewer" class="pdfViewer"></div>
+    </div>
+
+    <div id="errorWrapper" hidden='true'>
+        <div id="errorMessageLeft">
+            <span id="errorMessage"></span>
+            <button id="errorShowMore" data-l10n-id="error_more_info">
+              More Information
+            </button>
+            <button id="errorShowLess" data-l10n-id="error_less_info" hidden='true'>
+              Less Information
+            </button>
+        </div>
+        <div id="errorMessageRight">
+            <button id="errorClose" data-l10n-id="error_close">
+            Close
+            </button>
+        </div>
+        <div class="clearBoth"></div>
+        <textarea id="errorMoreInfo" hidden='true' readonly="readonly"></textarea>
+    </div>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.worker.js'></script>
+
     <script>
-        var showPdf = function(file) {
-
-            file = "PDF/formTest.pdf"
+        var file = "PDF/formTest.pdf"
+        var pageNumber = 1
+        var pageTotal = 1
+        var pdf = {}
+        var page = {}
+        var showPdf = function(file, pageNumber) {
+            pageNumber = pageNumber || 1
+            console.log('showPdf')
             PDFJS.getDocument(file).then(function(pdf) {
-                for (var pageNum = 1; pageNum <= pdf.numPages; ++pageNum) {
-                    pdf.getPage(pageNum).then(function(page) {
-                        // you can now use *page* here
+                this.pdf = pdf
+                pdf.getPage(pageNumber).then(function(page) {
+                    this.page = page
+                    var scale = 3;
+                    var defaultViewport = page.getViewport(1); //倍數
+                    var innerWidth = document.body.offsetWidth //window.innerWidth;
+                    var viewport = page.getViewport(innerWidth / defaultViewport.width) //依body大小顯示 
+                    var canvas = document.createElement('canvas');
+                    var context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
 
-                        var scale = 3;
-                        var viewport = page.getViewport(1.5); //倍數
-                        //viewport.width = window.innerWidth;
-                        var canvas = document.createElement('canvas');
-                        var context = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
+                    var renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    page.render(renderContext);
 
-                        var renderContext = {
-                            canvasContext: context,
-                            viewport: viewport
-                        };
-                        page.render(renderContext);
-
-                        document.getElementById('pdf-content').appendChild(canvas);
-                    });
-                }
+                    document.getElementById('pdf-content').appendChild(canvas);
+                });
             })
+        }
+
+        window.onload = function(e) {
+            showPdf(file, pageNumber)
         }
     </script>
 </body>
