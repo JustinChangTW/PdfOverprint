@@ -11,17 +11,56 @@
         background: #000;
         text-align: center;
     }
+    
+    #tempDiv {
+        border: 2px dashed red;
+        position: fixed;
+    }
+    
+    #ox {
+        width: 100%;
+        height: 1px;
+        background-color: #00f;
+        position: fixed;
+        left: 0px;
+    }
+    
+    #oy {
+        height: 100%;
+        width: 1px;
+        background-color: #00f;
+        position: fixed;
+        top: 0px
+    }
+    
+    #mouseCursor {
+        width: 200px;
+        color: blue;
+        position: fixed;
+    }
+    
+    .pointDiv {
+        position: absolute;
+        background-color: rgb(255, 255, 0, 0.5);
+    }
 </style>
 
 <body>
     <div id="pdf-content">
-        <canvas id="canvas" ref="canvas"></canvas>
+        <canvas id="canvas" ref="canvas" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"></canvas>
+        <div id="tempDiv" v-if="!tempDiv.isDisabled" :style="tempDiv"></div>
+        <div id="ox" :style="ox"></div>
+        <div id="oy" :style="oy"></div>
+        <div id="mouseCursor" :style="mouseCursor">{{mouseCursor.innerText}}</div>
+        <template v-for="x in dataPoint" id="dtapoint">
+            <div class="pointDiv" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])"></div>
+        </template>
     </div>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.js'></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.worker.js'></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.12/vue.js'></script>
     <script>
-        new Vue({
+        var vue = new Vue({
             el: '#pdf-content',
             data: function() {
                 return {
@@ -30,27 +69,37 @@
                     pageTotal: 1,
                     pdf: {},
                     page: {},
-                    canvas: null
+                    viewport: {},
+                    canvas: null,
+                    currentMousePoint: [],
+                    dataPoint: [],
+                    scrollPoint: [],
+                    pdfPoint: [],
+                    tempDiv: {
+                        isDisabled: true
+                    },
+                    mouseCursor: {},
+                    ox: {},
+                    oy: {},
+
                 }
             },
             mounted() {
-                this.canvas = this.$refs.canvas;
-                //this.canvas = document.getElementById("canvas");//與畫面的dom綁定
-                this.showPdf(this.file, this.pageNumber)
+                this.canvas = this.$refs.canvas; //與畫面Dom綁定
+                this.showPdf(this.file, this.pageNumber) //顯示Pdf
             },
+            created() {},
             methods: {
                 showPdf: function(file, pageNumber) {
                     pageNumber = pageNumber || 1
-                    console.log('showPdf')
                     PDFJS.getDocument(file).then((pdf) => {
                         this.pdf = pdf
                         pdf.getPage(pageNumber).then((page) => {
                             this.page = page
                             var scale = 3;
-                            var defaultViewport = page.getViewport(1); //倍數
+                            var defaultViewport = this.page.getViewport(1); //倍數
                             var innerWidth = document.body.offsetWidth //window.innerWidth;
-                            var viewport = page.getViewport(innerWidth / defaultViewport.width) //依body大小顯示 
-                                //var canvas = document.createElement('canvas');
+                            var viewport = this.page.getViewport(innerWidth / defaultViewport.width) //依body大小顯示 
                             var context = this.canvas.getContext('2d');
                             this.canvas.height = viewport.height;
                             this.canvas.width = viewport.width;
@@ -59,11 +108,151 @@
                                 canvasContext: context,
                                 viewport: viewport
                             };
-                            page.render(renderContext);
-
-                            //document.getElementById('pdf-content').appendChild(canvas);
+                            this.page.render(renderContext);
+                            this.page = Object.assign({}, this.pageObject)
+                            this.viewport = viewport
+                            console.log(viewport)
+                            console.log(renderContext)
+                                //document.getElementById('pdf-content').appendChild(canvas);
                         });
                     })
+                },
+
+                tranScreenPoint: function(points) {
+                    console.log(points)
+                    var screenPoint = {}
+                    if (points[0] != 0) {
+                        screenRect = this.viewport.convertToViewportRectangle(points)
+                        screenPoint.left = Math.min(screenRect[0], screenRect[2]) + 'px'
+                        screenPoint.top = Math.min(screenRect[1], screenRect[3]) + 'px'
+                        screenPoint.width = Math.abs(screenRect[0] - screenRect[2]) + 'px'
+                        screenPoint.height = Math.abs(screenRect[1] - screenRect[3]) + 'px'
+                    }
+
+                    return screenPoint
+                },
+                onMouseDown: function(e) {
+                    this.tempDiv.isDisabled = false
+                        //console.log('mouseCoordinate onmousedown', e)
+                    if (typeof e === 'object' && e.button === 0) {
+                        this.scrollPoint = [0, 0, 0, 0]
+                        this.scrollPoint[0] = e.pageX
+                        this.scrollPoint[1] = e.pageY
+                        this.tempDiv.id = 'p' + Math.random().toString(36).substring(2)
+                        this.tempDiv.left = this.scrollPoint[0] + 'px'
+                        this.tempDiv.top = this.scrollPoint[1] + 'px'
+                        this.tempDiv.width = '0px'
+                        this.tempDiv.height = '0px'
+                        this.tempDiv = Object.assign({}, this.tempDiv)
+                        this.currentMousePoint = []
+                        this.currentMousePoint[0] = {
+                            layerX: e.layerX,
+                            layerY: e.layerY,
+                            offsetX: e.offsetX,
+                            offsetY: e.offsetY,
+                            pageX: e.pageX,
+                            pageY: e.pageY,
+                            screenX: e.screenX,
+                            screenY: e.screenY
+                        }
+                    }
+                },
+                onMouseUp: function(e) {
+                    console.log('onMouseUp', e)
+                    this.tempDiv.isDisabled = true
+                    if (typeof e === 'object' && e.button === 0) {
+                        this.scrollPoint[2] = e.layerX
+                        this.scrollPoint[3] = e.layerY
+
+
+
+                        this.currentMousePoint[1] = {
+                            layerX: e.layerX,
+                            layerY: e.layerY,
+                            offsetX: e.offsetX,
+                            offsetY: e.offsetY,
+                            pageX: e.pageX,
+                            pageY: e.pageY,
+                            screenX: e.screenX,
+                            screenY: e.screenY
+                        }
+
+                        var point = []
+                        point[0] = this.currentMousePoint[0].layerX
+                        point[1] = this.currentMousePoint[0].layerY
+                        point[2] = this.currentMousePoint[1].layerX
+                        var diffScreenY = this.currentMousePoint[0].screenY - this.currentMousePoint[1].screenY
+                        point[3] = this.currentMousePoint[0].layerY - diffScreenY
+
+                        var point1 = this.viewport.convertToPdfPoint(point[0], point[1])
+                        var point2 = this.viewport.convertToPdfPoint(point[2], point[3])
+
+
+                        // if (this.currentData.id) {
+                        //     //update
+
+                        //     var data = dataPoint.find(x => x.id == currentData.id)
+                        //     data.x1 = point1[0]
+                        //     data.y1 = point1[1]
+                        //     data.x2 = point2[0]
+                        //     data.y2 = point2[1]
+
+                        //     //keeper  document.querySelector('#' + data.id).remove()
+                        //     this.draw(currentData.id, [point1[0], point1[1], point2[0], point2[1]])
+                        //     this.currentData = {}
+                        // } else {
+                        //save
+                        this.dataPoint.push({
+                                id: this.tempDiv.id,
+                                x1: point1[0],
+                                y1: point1[1],
+                                x2: point2[0],
+                                y2: point2[1],
+                            })
+                            //this.draw(tempDiv.id, [point1[0], point1[1], point2[0], point2[1]])
+                            //}
+
+
+
+
+                    }
+                },
+                onMouseMove: function(e) {
+                    //console.log('onMouseMove', e)
+                    var x = e.pageX;
+                    var y = e.pageY;
+                    var p = this.viewport.convertToPdfPoint(e.layerX, e.layerY)
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    var scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+
+                    this.ox.top = y - scrollTop - 4 + 'px';
+                    this.oy.left = x - scrollLeft - 4 + 'px';
+                    //this.ox.innerText = "PDF  X:" + (Math.round(p[0] * 100) / 100) + 'px；' + "Y:" + (Math.round(p[1] * 100) / 100) + 'px；';
+                    //this.ox.color = '#00f'
+
+                    // //document.querySelector('.loadingInProgress').innerHTML = 'x : ' + x + '<br/>y : ' + y;    
+                    // //var oDiv = document.getElementById('');
+
+                    // //滑鼠指標
+                    this.mouseCursor.left = e.pageX - scrollLeft + 10 + 'px';
+                    this.mouseCursor.top = e.pageY - scrollTop + 10 + 'px';
+                    //this.mouseCursor.innerText = "X:" + (Math.round(p[0] * 100) / 100) + 'px；' + "Y:" + (Math.round(p[1] * 100) / 100) + 'px；';
+                    this.mouseCursor.innerText = "X:" + e.layerX + 'px；' + "Y:" + e.layerY + 'px；';
+
+                    //框線
+                    var keep = 4
+                    var keepX = e.pageX - this.scrollPoint[0] > 0 ? -keep : keep
+                    var keepY = e.pageY - this.scrollPoint[1] > 0 ? -keep : keep
+                    this.tempDiv.left = Math.min(e.pageX, this.scrollPoint[0]) + keepX - scrollLeft + 'px'
+                    this.tempDiv.top = Math.min(e.pageY, this.scrollPoint[1]) + keepY - scrollTop + 'px'
+                    this.tempDiv.width = Math.abs(e.pageX - this.scrollPoint[0]) + 'px'
+                    this.tempDiv.height = Math.abs(e.pageY - this.scrollPoint[1]) + 'px'
+
+                    //更新資料物件
+                    this.tempDiv = Object.assign({}, this.tempDiv)
+                    this.ox = Object.assign({}, this.ox)
+                    this.oy = Object.assign({}, this.oy)
+                    this.mouseCursor = Object.assign({}, this.mouseCursor)
                 }
             },
         })
