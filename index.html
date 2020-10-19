@@ -9,9 +9,15 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha2/css/bootstrap.min.css" integrity="sha384-DhY6onE6f3zzKbjUPRc2hOzGAdEf4/Dz+WJwBvEYL/lkkIsI3ihufq9hk9K4lVoK" crossorigin="anonymous">
 </head>
 <style>
+    @font-face {
+        font-family: kaiu;
+        src: url(/font/kaiu.ttf);
+    }
+    
     body {
         background: #000;
         text-align: center;
+        font-family: kaiu;
     }
     
     #tempDiv {
@@ -44,6 +50,8 @@
     .pointDiv {
         position: absolute;
         background-color: rgb(255, 255, 0, 0.5);
+        font-size: 1em;
+        text-align: left;
     }
     
     .edit {
@@ -53,13 +61,30 @@
 
 <body oncontextmenu="return false">
     <div id="pdf-content">
+
+        <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">PDF 套印 系統</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+                <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                    <ul class="navbar-nav mr-auto mb-2 mb-lg-0">
+                    </ul>
+                    <div class="d-flex">
+                        <button type="button" class="btn btn-primary" @click="overprint(file,dataPoint)">套印PDF</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
         <canvas id="canvas" ref="canvas" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"></canvas>
         <div id="tempDiv" v-if="!tempDiv.isDisabled" :style="tempDiv"></div>
         <div id="ox" :style="ox"></div>
         <div id="oy" :style="oy"></div>
         <div id="mouseCursor" :style="mouseCursor">{{mouseCursor.innerText}}</div>
         <template v-for="x in dataPoint" id="dtapoint">
-            <div class="pointDiv" :class="x.id==editPoint.id?'edit':''" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" @mousedown="onEditMouseDown" ></div>
+            <div class="pointDiv" :class="x.id==editPoint.id?'edit':''" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" @mousedown="onEditMouseDown" >{{x.desc||""}}</div>
         </template>
         <div class="modal fade" id="editModal" ref="editModal" tabindex="-1" aria-labelledby="exampleModalLabel" data-backdrop="static" data-keyboard="false" @click="editOverClick">
             <div class="modal-dialog">
@@ -119,6 +144,9 @@
     </div>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.js'></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.worker.js'></script>
+    <script src="https://unpkg.com/pdf-lib@1.4.0"></script>
+    <script src="https://unpkg.com/@pdf-lib/fontkit@0.0.4"></script>
+    <script src="https://unpkg.com/downloadjs@1.4.7"></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.12/vue.js'></script>
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
     <!-- Option 1: Bootstrap Bundle with Popper.js -->
@@ -192,6 +220,7 @@
                         screenPoint.top = Math.min(screenRect[1], screenRect[3]) + 'px'
                         screenPoint.width = Math.abs(screenRect[0] - screenRect[2]) + 'px'
                         screenPoint.height = Math.abs(screenRect[1] - screenRect[3]) + 'px'
+                        screenPoint.paddingTop = Math.abs(screenRect[1] - screenRect[3]) - 11 + 'px'
                     }
 
                     return screenPoint
@@ -335,18 +364,78 @@
 
                 },
                 editReset: function(e) {
-                    console.log(vue.$refs['editModal'].id)
+                    //console.log(vue.$refs['editModal'].id)
                 },
                 editDel: function(e) {
-                    console.log(vue.$refs['editModal'])
+                    //console.log(vue.$refs['editModal'])
                     var index = this.dataPoint.map(x => x.id).indexOf(this.editPoint.id)
                     this.dataPoint.splice(index, 1)
                     this.dataPoint = JSON.parse(JSON.stringify(this.dataPoint))
                     this.editPoint = {}
                 },
                 editOverClick: function(e) {
-                    console.log('editOverClick', e)
-                }
+                    //console.log('editOverClick', e)
+                },
+                overprint: async function(file, points) {
+                    const {
+                        degrees,
+                        PDFDocument,
+                        rgb,
+                        StandardFonts,
+                        PDFFont
+                    } = PDFLib
+                    // Fetch an existing PDF document
+                    const url = file
+                    const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer())
+
+                    // Load a PDFDocument from the existing PDF bytes
+                    const pdfDoc = await PDFDocument.load(existingPdfBytes)
+                    pdfDoc.registerFontkit(fontkit)
+
+                    //字型
+                    const font_url = '/font/kaiu.ttf'
+                    const fontBytes = await fetch(font_url).then(res => res.arrayBuffer())
+                    const customFont = await pdfDoc.embedFont(fontBytes)
+
+                    // Get the first page of the document
+                    const pages = pdfDoc.getPages()
+                    const firstPage = pages[0]
+
+                    // Get the width and height of the first page
+                    const {
+                        width,
+                        height
+                    } = firstPage.getSize()
+
+                    points.forEach(point => {
+
+                        //var x = 90
+                        //var y = 752
+
+                        //var x = parseInt(point.x)
+                        //var y = parseInt(point.y)
+
+                        var x = Math.min(point.x1, point.x2)
+                        var y = Math.min(point.y1, point.y2)
+
+                        firstPage.drawText(point.desc, {
+                            x: x,
+                            y: y,
+                            size: 8,
+                            font: customFont,
+                            color: rgb(0.95, 0.1, 0.1),
+                        })
+                    });
+
+                    // Serialize the PDFDocument to bytes (a Uint8Array)
+                    const pdfBytes = await pdfDoc.save()
+
+                    // Trigger the browser to download the PDF document
+                    var d = new Date()
+                    d.toISOString().replace(/[-,T,:]/g, "").split('.')[0]
+                    var newFileName = file.split('.')[0] + d.toISOString().replace(/[-,T,:]/g, "").split('.')[0] + file.split('.')[1]
+                    download(pdfBytes, newFileName, "application/pdf");
+                },
             },
         })
     </script>
