@@ -204,8 +204,8 @@
                             this.page.render(renderContext);
                             this.page = Object.assign({}, this.pageObject)
                             this.viewport = viewport
-                            console.log(viewport)
-                            console.log(renderContext)
+                                //console.log(viewport)
+                                //console.log(renderContext)
                                 //document.getElementById('pdf-content').appendChild(canvas);
                         });
                     })
@@ -214,9 +214,13 @@
                 tranScreenPoint: function(points) {
                     //console.log(points)
                     var screenPoint = {}
+                    var diffWidth = 0
+                    if (this.$el.offsetWidth - this.canvas.width > 0) {
+                        diffWidth = this.$el.offsetWidth - this.canvas.width
+                    }
                     if (points[0] != 0) {
                         screenRect = this.viewport.convertToViewportRectangle(points)
-                        screenPoint.left = Math.min(screenRect[0], screenRect[2]) + 'px'
+                        screenPoint.left = Math.min(screenRect[0], screenRect[2]) + (diffWidth / 2) + 'px'
                         screenPoint.top = Math.min(screenRect[1], screenRect[3]) + 'px'
                         screenPoint.width = Math.abs(screenRect[0] - screenRect[2]) + 'px'
                         screenPoint.height = Math.abs(screenRect[1] - screenRect[3]) + 'px'
