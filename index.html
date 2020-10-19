@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Overprint</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha2/css/bootstrap.min.css" integrity="sha384-DhY6onE6f3zzKbjUPRc2hOzGAdEf4/Dz+WJwBvEYL/lkkIsI3ihufq9hk9K4lVoK" crossorigin="anonymous">
 </head>
 <style>
     body {
@@ -43,9 +45,13 @@
         position: absolute;
         background-color: rgb(255, 255, 0, 0.5);
     }
+    
+    .edit {
+        background-color: rgb(255, 0, 200, 0.6);
+    }
 </style>
 
-<body>
+<body oncontextmenu="return false">
     <div id="pdf-content">
         <canvas id="canvas" ref="canvas" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"></canvas>
         <div id="tempDiv" v-if="!tempDiv.isDisabled" :style="tempDiv"></div>
@@ -53,12 +59,71 @@
         <div id="oy" :style="oy"></div>
         <div id="mouseCursor" :style="mouseCursor">{{mouseCursor.innerText}}</div>
         <template v-for="x in dataPoint" id="dtapoint">
-            <div class="pointDiv" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])"></div>
+            <div class="pointDiv" :class="x.id==editPoint.id?'edit':''" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" @mousedown="onEditMouseDown" ></div>
         </template>
+        <div class="modal fade" id="editModal" ref="editModal" tabindex="-1" aria-labelledby="exampleModalLabel" data-backdrop="static" data-keyboard="false" @click="editOverClick">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="exampleModalLabel">編輯定位點</h5>
+                        <!--button type="button" class="btn-close" data-dismiss="modal" aria-label="Close"></button-->
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="row mb-3">
+                                <label for="id" class="col-sm-2 col-form-label">id</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="form-control" id="id" v-model="editPoint.id">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="pointX1" class="col-sm-2 col-form-label">X1</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="col-sm-10 form-control" id="pointX1" v-model="editPoint.x1">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="pointY1" class="col-sm-2 col-form-label">Y1</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="col-sm-10 form-control" id="pointY1" v-model="editPoint.y1">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="pointX2" class="col-sm-2 col-form-label">X2</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="col-sm-10 form-control" id="pointX2" v-model="editPoint.x2">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="pointY2" class="col-sm-2 col-form-label">Y2</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="col-sm-10 form-control" id="pointY2" v-model="editPoint.y2">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="desc" class="col-sm-2 col-form-label">desc</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="col-sm-10 form-control" id="desc" v-model="editPoint.desc">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" @click="editUpdate">更新</button>
+                        <button type="button" class="btn btn-primary" data-dismiss="modal" @click="editReset">重新定位</button>
+                        <button type="button" class="btn btn-danger" data-dismiss="modal" @click="editDel">刪除</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.js'></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/1.0.1000/pdf.worker.js'></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.12/vue.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <!-- Option 1: Bootstrap Bundle with Popper.js -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.0.0-alpha2/js/bootstrap.bundle.min.js" integrity="sha384-BOsAfwzjNJHrJ8cZidOg56tcQWfp6y72vEJ8xQ9w6Quywb24iOsW913URv1IS4GD" crossorigin="anonymous"></script>
+
     <script>
         var vue = new Vue({
             el: '#pdf-content',
@@ -68,11 +133,11 @@
                     pageNumber: 1,
                     pageTotal: 1,
                     pdf: {},
-                    page: {},
                     viewport: {},
                     canvas: null,
                     currentMousePoint: [],
                     dataPoint: [],
+                    editPoint: {},
                     scrollPoint: [],
                     pdfPoint: [],
                     tempDiv: {
@@ -119,7 +184,7 @@
                 },
 
                 tranScreenPoint: function(points) {
-                    console.log(points)
+                    //console.log(points)
                     var screenPoint = {}
                     if (points[0] != 0) {
                         screenRect = this.viewport.convertToViewportRectangle(points)
@@ -155,6 +220,8 @@
                             screenX: e.screenX,
                             screenY: e.screenY
                         }
+                    } else {
+                        this.currentMousePoint = []
                     }
                 },
                 onMouseUp: function(e) {
@@ -163,8 +230,6 @@
                     if (typeof e === 'object' && e.button === 0) {
                         this.scrollPoint[2] = e.layerX
                         this.scrollPoint[3] = e.layerY
-
-
 
                         this.currentMousePoint[1] = {
                             layerX: e.layerX,
@@ -188,34 +253,31 @@
                         var point2 = this.viewport.convertToPdfPoint(point[2], point[3])
 
 
-                        // if (this.currentData.id) {
-                        //     //update
+                        if (this.editPoint.id) {
+                            //update
 
-                        //     var data = dataPoint.find(x => x.id == currentData.id)
-                        //     data.x1 = point1[0]
-                        //     data.y1 = point1[1]
-                        //     data.x2 = point2[0]
-                        //     data.y2 = point2[1]
+                            var data = this.dataPoint.find(x => x.id == this.editPoint.id)
+                            data.x1 = point1[0]
+                            data.y1 = point1[1]
+                            data.x2 = point2[0]
+                            data.y2 = point2[1]
 
-                        //     //keeper  document.querySelector('#' + data.id).remove()
-                        //     this.draw(currentData.id, [point1[0], point1[1], point2[0], point2[1]])
-                        //     this.currentData = {}
-                        // } else {
-                        //save
-                        this.dataPoint.push({
+                            //keeper  document.querySelector('#' + data.id).remove()
+                            //this.draw(currentData.id, [point1[0], point1[1], point2[0], point2[1]])
+                            this.editPoint = {}
+                            this.dataPoint = JSON.parse(JSON.stringify(this.dataPoint))
+                        } else {
+                            //save
+                            this.dataPoint.push({
                                 id: this.tempDiv.id,
                                 x1: point1[0],
                                 y1: point1[1],
                                 x2: point2[0],
                                 y2: point2[1],
                             })
-                            //this.draw(tempDiv.id, [point1[0], point1[1], point2[0], point2[1]])
-                            //}
-
-
-
-
+                        }
                     }
+                    this.scrollPoint = []
                 },
                 onMouseMove: function(e) {
                     //console.log('onMouseMove', e)
@@ -253,6 +315,37 @@
                     this.ox = Object.assign({}, this.ox)
                     this.oy = Object.assign({}, this.oy)
                     this.mouseCursor = Object.assign({}, this.mouseCursor)
+                },
+                onEditMouseDown: function(e) {
+                    if (typeof e === 'object' && e.button === 2) {
+                        var model = new bootstrap.Modal(vue.$refs['editModal'], {
+                            backdrop: "static",
+                            keyboard: false
+                        })
+                        console.log('onEditMouseDown', e)
+                        var id = e.target.id
+                        this.editPoint = this.dataPoint.find(x => x.id === id)
+                        if (this.editPoint) {
+                            model.show()
+                        }
+                    }
+                },
+                editUpdate: function(e) {
+                    this.editPoint = {}
+
+                },
+                editReset: function(e) {
+                    console.log(vue.$refs['editModal'].id)
+                },
+                editDel: function(e) {
+                    console.log(vue.$refs['editModal'])
+                    var index = this.dataPoint.map(x => x.id).indexOf(this.editPoint.id)
+                    this.dataPoint.splice(index, 1)
+                    this.dataPoint = JSON.parse(JSON.stringify(this.dataPoint))
+                    this.editPoint = {}
+                },
+                editOverClick: function(e) {
+                    console.log('editOverClick', e)
                 }
             },
         })
