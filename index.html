@@ -50,8 +50,23 @@
     .pointDiv {
         position: absolute;
         background-color: rgb(255, 255, 0, 0.5);
+        border: 1px solid #aaa;
         font-size: 1em;
-        text-align: left;
+        text-align: center;
+    }
+    
+    .pointDiv:hover {
+        background-color: rgb(255, 255, 0, 0.7);
+    }
+    
+    .pointDot {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background-color: rgb(255, 255, 0, 0.5);
+        border: 1px solid #aaa;
+        right: -4px;
+        bottom: -4px;
     }
     
     .edit {
@@ -60,7 +75,7 @@
 </style>
 
 <body oncontextmenu="return false">
-    <div id="pdf-content">
+    <div id="pdf-content" @mousedown="onMoveMouseDown" @mousemove="onMoveMouseMove" @mouseup="onMoveMouseUp">
 
         <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
             <div class="container-fluid">
@@ -80,11 +95,14 @@
 
         <canvas id="canvas" ref="canvas" @mousedown="onMouseDown" @mouseup="onMouseUp" @mousemove="onMouseMove"></canvas>
         <div id="tempDiv" v-if="!tempDiv.isDisabled" :style="tempDiv"></div>
-        <div id="ox" :style="ox"></div>
+        <!-- <div id="ox" :style="ox"></div>
         <div id="oy" :style="oy"></div>
-        <div id="mouseCursor" :style="mouseCursor">{{mouseCursor.innerText}}</div>
-        <template v-for="x in dataPoint" id="dtapoint">
-            <div class="pointDiv" :class="x.id==editPoint.id?'edit':''" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" @mousedown="onEditMouseDown" >{{x.desc||""}}</div>
+        <div id="mouseCursor" :style="mouseCursor">{{mouseCursor.innerText}}</div> -->
+        <template v-for="x in dataPoint" :id="x.id">
+            <div class="pointDiv" :class="x.id==editPoint.id?'edit':''" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" 
+            @mousedown="onEditMouseDown" @mouseover="onMoveMouseOver(x.id)">
+                <div class="pointDot" @mousedown="onSizeMouseDown" @mouseover="onMoveMouseOver(x.id)"></div>
+                {{x.desc||""}}</div>
         </template>
         <div class="modal fade" id="editModal" ref="editModal" tabindex="-1" aria-labelledby="exampleModalLabel" data-backdrop="static" data-keyboard="false" @click="editOverClick">
             <div class="modal-dialog">
@@ -172,6 +190,16 @@
                         isDisabled: true
                     },
                     mouseCursor: {},
+                    currentPoint: {
+                        moving: {
+                            target: null,
+                            action: false
+                        },
+                        resizing: {
+                            target: null,
+                            action: false
+                        }
+                    },
                     ox: {},
                     oy: {},
 
@@ -180,6 +208,11 @@
             mounted() {
                 this.canvas = this.$refs.canvas; //與畫面Dom綁定
                 this.showPdf(this.file, this.pageNumber) //顯示Pdf
+                window.addEventListener("resize", (e) => {
+                    if (this.dataPoint) {
+                        this.dataPoint = JSON.parse(JSON.stringify(this.dataPoint))
+                    }
+                });
             },
             created() {},
             methods: {
@@ -194,8 +227,8 @@
                             var innerWidth = document.body.offsetWidth //window.innerWidth;
                             var viewport = this.page.getViewport(innerWidth / defaultViewport.width) //依body大小顯示 
                             var context = this.canvas.getContext('2d');
-                            this.canvas.height = viewport.height;
-                            this.canvas.width = viewport.width;
+                            this.canvas.height = viewport.height - 5;
+                            this.canvas.width = viewport.width - 5;
 
                             var renderContext = {
                                 canvasContext: context,
@@ -210,7 +243,6 @@
                         });
                     })
                 },
-
                 tranScreenPoint: function(points) {
                     //console.log(points)
                     var screenPoint = {}
@@ -224,12 +256,14 @@
                         screenPoint.top = Math.min(screenRect[1], screenRect[3]) + 'px'
                         screenPoint.width = Math.abs(screenRect[0] - screenRect[2]) + 'px'
                         screenPoint.height = Math.abs(screenRect[1] - screenRect[3]) + 'px'
-                        screenPoint.paddingTop = Math.abs(screenRect[1] - screenRect[3]) - 11 + 'px'
+                        screenPoint.paddingTop = Math.abs(screenRect[1] - screenRect[3]) / 2 + 'px'
                     }
 
                     return screenPoint
                 },
                 onMouseDown: function(e) {
+                    if (e.ctrlKey) return
+
                     this.tempDiv.isDisabled = false
                         //console.log('mouseCoordinate onmousedown', e)
                     if (typeof e === 'object' && e.button === 0) {
@@ -237,8 +271,8 @@
                         this.scrollPoint[0] = e.pageX
                         this.scrollPoint[1] = e.pageY
                         this.tempDiv.id = 'p' + Math.random().toString(36).substring(2)
-                        this.tempDiv.left = this.scrollPoint[0] + 'px'
-                        this.tempDiv.top = this.scrollPoint[1] + 'px'
+                        this.tempDiv.left = this.scrollPoint[0] || 0 + 'px'
+                        this.tempDiv.top = this.scrollPoint[1] || 0 + 'px'
                         this.tempDiv.width = '0px'
                         this.tempDiv.height = '0px'
                         this.tempDiv = Object.assign({}, this.tempDiv)
@@ -258,7 +292,8 @@
                     }
                 },
                 onMouseUp: function(e) {
-                    console.log('onMouseUp', e)
+                    if (e.ctrlKey) return
+                        //console.log('onMouseUp', e)
                     this.tempDiv.isDisabled = true
                     if (typeof e === 'object' && e.button === 0) {
                         this.scrollPoint[2] = e.layerX
@@ -344,10 +379,79 @@
                     this.tempDiv.height = Math.abs(e.pageY - this.scrollPoint[1]) + 'px'
 
                     //更新資料物件
-                    this.tempDiv = Object.assign({}, this.tempDiv)
-                    this.ox = Object.assign({}, this.ox)
-                    this.oy = Object.assign({}, this.oy)
-                    this.mouseCursor = Object.assign({}, this.mouseCursor)
+                    // this.tempDiv = Object.assign({}, this.tempDiv)
+                    // this.ox = Object.assign({}, this.ox)
+                    // this.oy = Object.assign({}, this.oy)
+                    // this.mouseCursor = Object.assign({}, this.mouseCursor)
+                },
+                onMoveMouseOver: function(id) {
+                    this.currentPoint.id = id
+                },
+                onMoveMouseDown: function(e) {
+                    //e.stopPropagation();
+
+                    console.log('onMoveMouseDown', e)
+                    if (!e.ctrlKey) return
+                    if (this.currentPoint.id) {
+                        let data = this.dataPoint.find(x => x.id == this.currentPoint.id)
+                        this.currentPoint.moving.data = data
+                        this.currentPoint.moving.screen = this.tranScreenPoint([data.x1, data.y1, data.x2, data.y2])
+                        this.currentPoint.moving.x = e.pageX
+                        this.currentPoint.moving.y = e.pageY
+                        this.currentPoint.moving.beforePoint = this.viewport.convertToPdfPoint(e.screenX, e.screenY)
+                        this.currentPoint.moving.action = true
+                    }
+                },
+                onSizeMouseDown: function(e) {
+                    e.stopPropagation()
+                    console.log('onSizeMouseDown', e)
+                    if (!e.ctrlKey) return
+                    if (this.currentPoint.id) {
+                        let data = this.dataPoint.find(x => x.id == this.currentPoint.id)
+                        this.currentPoint.resizing.data = data
+                        this.currentPoint.resizing.screen = this.tranScreenPoint([data.x1, data.y1, data.x2, data.y2])
+                        this.currentPoint.resizing.x = e.pageX
+                        this.currentPoint.resizing.y = e.pageY
+                        this.currentPoint.resizing.beforePoint = this.viewport.convertToPdfPoint(e.screenX, e.screenY)
+                        this.currentPoint.resizing.action = true
+                    }
+                },
+                onMoveMouseMove: function(e) {
+
+                    e.stopPropagation();
+                    if (!e.ctrlKey) return
+
+                    if (this.currentPoint.id && this.currentPoint.moving.action) {
+                        if (this.currentPoint.moving.beforePoint) {
+                            let x = e.screenX
+                            let y = e.screenY
+                            let beforePoint = this.currentPoint.moving.beforePoint
+                            let afterPoint = this.viewport.convertToPdfPoint(e.screenX, e.screenY)
+                            this.currentPoint.moving.afterPoint = afterPoint
+                            this.currentPoint.moving.data.x1 += (afterPoint[0] - beforePoint[0])
+                            this.currentPoint.moving.data.x2 += (afterPoint[0] - beforePoint[0])
+                            this.currentPoint.moving.data.y1 += (afterPoint[1] - beforePoint[1])
+                            this.currentPoint.moving.data.y2 += (afterPoint[1] - beforePoint[1])
+                            this.currentPoint.moving.beforePoint = afterPoint
+                        }
+                    }
+                    if (this.currentPoint.id && this.currentPoint.resizing.action) {
+                        if (this.currentPoint.resizing.beforePoint) {
+                            let x = e.screenX
+                            let y = e.screenY
+                            let beforePoint = this.currentPoint.resizing.beforePoint
+                            let afterPoint = this.viewport.convertToPdfPoint(e.screenX, e.screenY)
+                            this.currentPoint.resizing.afterPoint = afterPoint
+                            this.currentPoint.resizing.data.x2 += (afterPoint[0] - beforePoint[0])
+                            this.currentPoint.resizing.data.y2 += (afterPoint[1] - beforePoint[1])
+                            this.currentPoint.resizing.beforePoint = afterPoint
+                        }
+                    }
+                },
+                onMoveMouseUp: function(e) {
+                    this.currentPoint.id = ''
+                    this.currentPoint.moving.action = false
+                    this.currentPoint.resizing.action = false
                 },
                 onEditMouseDown: function(e) {
                     if (typeof e === 'object' && e.button === 2) {
