@@ -69,8 +69,21 @@
         bottom: -4px;
     }
     
+    .pointInput {
+        position: relative;
+        left: 0 !important;
+        top: -100% !important;
+        bottom: 2px;
+        padding-top: 0px !important;
+    }
+    
     .edit {
         background-color: rgb(255, 0, 200, 0.6);
+    }
+    
+    .user {
+        background-color: #ffff;
+        border: none;
     }
 </style>
 
@@ -79,15 +92,27 @@
 
         <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
             <div class="container-fluid">
-                <a class="navbar-brand" href="#">PDF 套印 系統</a>
+                <a class="navbar-brand" href="#">PDF套印系統</a>
                 <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <ul class="navbar-nav mr-auto mb-2 mb-lg-0">
+                        <li class="nav-item">
+                            <select name="userModel" class="form-select" v-model="model.userModel">
+                                <option value="user">使用者模式</option>
+                                <option value="admin">管理者模式</option>
+                            </select>
+                        </li>
+                        <li class="nav-item">
+                            <select name="editModel" class="form-select" v-model="model.editModel">
+                                <option value="default">預設模式</option>
+                                <option value="input">輸入模式</option>
+                            </select>
+                        </li>
                     </ul>
                     <div class="d-flex">
-                        <button type="button" class="btn btn-primary" @click="overprint(file,dataPoint)">套印PDF</button>
+                        <button type="button" class="btn btn-primary btn-sm" @click="overprint(file,dataPoint)">套印PDF</button>
                     </div>
                 </div>
             </div>
@@ -98,12 +123,35 @@
         <!-- <div id="ox" :style="ox"></div>
         <div id="oy" :style="oy"></div>
         <div id="mouseCursor" :style="mouseCursor">{{mouseCursor.innerText}}</div> -->
-        <template v-for="x in dataPoint" :id="x.id">
-            <div class="pointDiv" :class="x.id==editPoint.id?'edit':''" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" 
-            @mousedown="onEditMouseDown" @mouseover="onMoveMouseOver(x.id)">
-                <div class="pointDot" @mousedown="onSizeMouseDown" @mouseover="onMoveMouseOver(x.id)"></div>
-                {{x.desc||""}}</div>
-        </template>
+        <form>
+            <template v-for="x in dataPoint" :id="x.id">
+                <div v-if="model.editModel=='input'">
+                    <div v-if="x.type=='select'" class="pointDiv" 
+                        :class="x.id==editPoint.id?'edit':''"  :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" 
+                        @mousedown="onEditMouseDown" @mouseover="onMoveMouseOver(x.id)">
+                        <select class="pointInput" :name="x.name" :id="x.name" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" v-model="inputData[x.name]">
+                            <option value="">--</option>
+                            <option value="0">0.demo</option>
+                            <option value="1">1.demo</option>
+                            <option value="2">2.demo</option>
+                        </select>
+                        <div class="pointDot" @mousedown="onSizeMouseDown" @mouseover="onMoveMouseOver(x.id)"></div>
+                    </div>
+                    <div v-else class="pointDiv" 
+                        :class="{'edit':x.id==editPoint.id,'user':model.userModel=='user'}"  
+                        :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" 
+                        @mousedown="onEditMouseDown" @mouseover="onMoveMouseOver(x.id)">
+                        <input class="pointInput" :type="x.type" :name="x.name" :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])"  v-model="inputData[x.name]">
+                        <div class="pointDot" @mousedown="onSizeMouseDown" @mouseover="onMoveMouseOver(x.id)"></div>
+                    </div>
+                </div>
+                <div v-else class="pointDiv" 
+                        :class="x.id==editPoint.id?'edit':''"  :id="x.id" :style="tranScreenPoint([x.x1,x.y1,x.x2,x.y2])" 
+                        @mousedown="onEditMouseDown" @mouseover="onMoveMouseOver(x.id)"> {{x.desc||""}}
+                    <div class="pointDot" @mousedown="onSizeMouseDown" @mouseover="onMoveMouseOver(x.id)"></div>
+                </div>
+            </template>
+        </form>
         <div class="modal fade" id="editModal" ref="editModal" tabindex="-1" aria-labelledby="exampleModalLabel" data-backdrop="static" data-keyboard="false" @click="editOverClick">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -117,6 +165,12 @@
                                 <label for="id" class="col-sm-2 col-form-label">id</label>
                                 <div class="col-sm-10">
                                     <input type="text" class="form-control" id="id" v-model="editPoint.id">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="id" class="col-sm-2 col-form-label">id</label>
+                                <div class="col-sm-10">
+                                    <input type="text" class="form-control" id="id" v-model="editPoint.name">
                                 </div>
                             </div>
                             <div class="row mb-3">
@@ -141,6 +195,17 @@
                                 <label for="pointY2" class="col-sm-2 col-form-label">Y2</label>
                                 <div class="col-sm-10">
                                     <input type="text" class="col-sm-10 form-control" id="pointY2" v-model="editPoint.y2">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <label for="type" class="col-sm-2 col-form-label">type</label>
+                                <div class="col-sm-10">
+                                    <select class="form-select" name="type" id="type" v-model="editPoint.type">
+                                        <option value="text">text</option>
+                                        <option value="checkbox">checkbox</option>
+                                        <option value="radio">radio</option>
+                                        <option value="select">select</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="row mb-3">
@@ -202,7 +267,11 @@
                     },
                     ox: {},
                     oy: {},
-
+                    model: {
+                        userModel: "user",
+                        editModel: "default"
+                    },
+                    inputData: {}
                 }
             },
             mounted() {
@@ -342,6 +411,8 @@
                                 y1: point1[1],
                                 x2: point2[0],
                                 y2: point2[1],
+                                name: "name",
+                                type: "text"
                             })
                         }
                     }
@@ -525,10 +596,10 @@
 
                         var x = Math.min(point.x1, point.x2)
                         var y = Math.min(point.y1, point.y2)
-
-                        firstPage.drawText(point.desc, {
-                            x: x,
-                            y: y,
+                        var value = this.inputData[point.name]
+                        firstPage.drawText(value, {
+                            x: x + 1,
+                            y: y + 8,
                             size: 8,
                             font: customFont,
                             color: rgb(0.95, 0.1, 0.1),
